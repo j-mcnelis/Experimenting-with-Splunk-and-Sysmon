@@ -4,13 +4,50 @@
 
 The Experimenting with Splunk & Sysmon project is where I will be documenting the process of installing both Splunk and Sysmon into the home lab environment created in my previous project. My hope is to better my understanding of the functions of a SIEM and to view/explore telemetry created by a malware attack.
 
+## Summary (Post-Completion Bullet Points)
+- Deployed and configured Splunk Enterprise and Sysmon on a Windows 11 VM, ingesting Sysmon telemetry and developing Splunk searches to detect post-exploitation activity.
+- Built and delivered a Meterpreter reverse-TCP payload from Kali (msfvenom + Python HTTP server) and validated detection via Splunk and Sysmon event analysis.
+- Performed reconnaissance with Nmap, mapped network connections to processes (netstat + PID), and used snapshots and internal networking in VirtualBox to run isolated attack simulations.
+
 ### Skills Learned/Improved
 
-- Placeholder Skill - will be updated in future
+- Virtual lab & environment management
+	- Configuring VirtualBox network modes (NAT ↔ Internal) and VM resource tuning.
+	- Taking and using snapshots for rollback and safe testing.
+- SIEM deployment & administration
+	- Installing and configuring Splunk Enterprise (service, ports, indices, apps/add-ons).
+	- Editing Splunk config (inputs.conf) and creating indexes to ingest custom telemetry.
+- Endpoint telemetry & host visibility
+	- Installing and configuring Sysmon with a community config to capture detailed endpoint events.
+	- Understanding Sysmon event types (process creation, network connections, parent/child relations).
+- Networking & reconnaissance
+	- Performing targeted network scans with Nmap (-A, -Pn) and interpreting results (open ports: RDP, Splunk).
+	- Managing IPv4 addressing (static vs. DHCP) and internal subnets for isolated testing.
+- Offensive tooling & payload engineering
+	- Building malicious payloads with msfvenom and hosting them with a simple HTTP server for delivery.
+	- Operating Metasploit (msfconsole, exploit/multi/handler) to receive reverse shells.
+- Incident simulation
+	- Executing a controlled malware simulation, observing behavior, and generating realistic telemetry.
+	- Correlating attacker activity (meterpreter commands) with Sysmon events and Splunk searches.
+- Forensics/triage & investigation
+	- Using netstat + process lookups to map network connections to executables and PIDs.
+	- Extracting process GUIDs/parent-child chains from Sysmon events and building Splunk queries to reconstruct activity (tables, event filtering).
+- Windows administration & troubleshooting
+	- Temporarily disabling Defender/real-time protection for testing, enabling RDP, task/process inspection.
+	- Using PowerShell and services.msc for service management and verification.
+- Linux basics/server hosting
+	- Running Python simple HTTP server and basic Kali operations (terminals, payload listings).
+- Splunk search skills
+	- Using Search & Reporting, building queries (index=, filters), exploring Interesting Fields, and creating tables to surface IOC/commands.
 
 ### Tools/Technologies Used
 
-- Placeholder Tool/Technology - will be updated in future
+- Virtualization/Lab: Oracle VirtualBox (VM creation, snapshots, internal/NAT networking)
+- Operating systems: Windows 11 (target/Splunk/Sysmon host), Kali Linux (attacker/payload host)
+- SIEM & telemetry: Splunk Enterprise (web UI on port 8000, indexes, add-ons), Sysmon (with sysmonconfig.xml from GitHub)
+- Offensive/testing tools: Metasploit Framework (msfvenom, msfconsole, exploit/multi/handler), Python (python3 -m http.server to host payload)
+- Recon & network: Nmap (scanning: nmap -A -Pn), Windows netstat (with -anob) with Select-String for parsing output
+- Windows admin tools: Services.msc, Task Manager, Windows Settings (RDP, Defender adjustments)
 
 # Steps
 
@@ -159,5 +196,5 @@ The Experimenting with Splunk & Sysmon project is where I will be documenting th
 - If I take this value and craft a Splunk search as `index="endpoint" {2929efd0-bb1f-68fa-8302-000000000d00} | table _time,ParentImage,Image,CommandLine`, it returns the following table:
 <img width="1303" height="772" alt="Screenshot 2025-10-23 205443" src="https://github.com/user-attachments/assets/0d47713b-cf30-40c5-b4d5-be08c77d6c2d" />
 
-- I ran the commands a few extra times but if you look on the right side, you can see the whoami, net user, net localgroup, and ipconfig commands that were run through the shell and now appear in Splunk
+- I ran the commands a few extra times but if you look on the right side, you can see the `whoami`, `net user`, `net localgroup`, and `ipconfig` commands that were run through the shell and now appear in Splunk
 - This shows that Sysmon captured the commands input via the meterpreter_reverse_tcp payload shell that was created on the Kali VM and Splunk is able to then ingest these logs and display/report them
